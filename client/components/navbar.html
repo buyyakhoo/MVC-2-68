@@ -1,43 +1,57 @@
-<nav style="display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid #ddd;font-family:sans-serif">
-    <div style="display:flex;gap:10px;align-items:center">
-        <a href="/client/dashboard.html">Home</a>
-        <a href="/client/students.html" id="link-students" style="display:none;">Students</a>
-        <a href="/client/grading.html" id="link-grading" style="display:none;">Grade Entry</a>
-        <a href="/client/profile.html" id="link-profile">Profile</a>
-        <a href="/client/unregistered.html" id="link-unregistered">Unregistered</a>
+<nav style="background-color: #333; padding: 15px; color: white; display: flex; justify-content: space-between; align-items: center;">
+    <div class="nav-brand">
+        <a href="all_promises.html" style="color: white; text-decoration: none; font-size: 1.2em; font-weight: bold;">Political Tracker</a>
     </div>
-    <div style="display:flex;gap:12px;align-items:center">
-        <span id="whoami" style="color:#555;">—</span>
-        <form id="logoutForm" style="margin:0;"><button type="submit">Logout</button></form>
+    <div class="nav-links">
+        <a href="all_promises.html" style="color: #ddd; text-decoration: none; margin-right: 15px;">หน้ารวมคำสัญญา</a>
+        <a href="politician_profile.html" style="color: #181818; text-decoration: none; margin-right: 15px;">หน้านักการเมือง</a>
+        
+        <a id="admin-link" href="add_update.html" style="color: #ff6b6b; text-decoration: none; margin-right: 15px; display: none;">[Admin] อัปเดตความคืบหน้า</a>
+    </div>
+    <div class="auth-section">
+        <span id="user-display" style="margin-right: 10px;"></span>
+        <button id="auth-btn" onclick="handleAuth()" style="padding: 5px 10px; cursor: pointer;">Login</button>
     </div>
 </nav>
+
 <script>
-    const u = (()=>{ try{return JSON.parse(localStorage.getItem('currentUser'))}catch{return null} })();
-    if(!u){
-        if(!location.pathname.endsWith('/client/login.html')) location.href='/client/login.html';
-    }else{
-        document.getElementById('whoami').textContent = `user: ${u.user_id} • type: ${u.user_type}`;
-        const isAdmin = u.user_type === 'admin';
-        if(isAdmin){
-            document.getElementById('link-students').style.display='';
-            document.getElementById('link-grading').style.display='';
+    // --- Mock Authentication Logic (View Controller) ---
+    function checkAuth() {
+        const role = localStorage.getItem('role');
+        const username = localStorage.getItem('username');
+        const adminLink = document.getElementById('admin-link');
+        const authBtn = document.getElementById('auth-btn');
+        const userDisplay = document.getElementById('user-display');
+
+        if (role) {
+            // กรณี Login แล้ว
+            userDisplay.textContent = `สวัสดี, ${username} (${role})`;
+            authBtn.textContent = 'Logout';
+            
+            // ถ้าเป็น Admin ให้โชว์ปุ่มลับ
+            if (role === 'admin') {
+                adminLink.style.display = 'inline';
+            }
+        } else {
+            // กรณี Guest
+            userDisplay.textContent = '';
+            authBtn.textContent = 'Login';
+            adminLink.style.display = 'none';
         }
-        // student จะพาไป profile ของตัวเอง
-        document.getElementById('link-profile').addEventListener('click', (e)=>{
-        if(!isAdmin){
-            e.preventDefault();
-            location.href=`/client/profile.html?student_id=${encodeURIComponent(u.user_id)}`;
-        }
-        });
     }
 
-    // ✅ logout: ส่งคุกกี้ไปล้าง session + ล้าง localStorage + เด้งไป /client/login.html
-    document.getElementById('logoutForm').addEventListener('submit', async (e)=>{
-        e.preventDefault();
-        try{
-        await fetch('http://127.0.0.1:5000/logout', { method: 'POST', credentials: 'include' });
-        }catch(_){}
-        localStorage.removeItem('currentUser');
-        location.href='/client/login.html';
-    });
+    function handleAuth() {
+        const role = localStorage.getItem('role');
+        if (role) {
+            // ถ้า Login อยู่ ให้ Logout
+            localStorage.clear();
+            window.location.href = 'login.html';
+        } else {
+            // ถ้ายังไม่ Login ให้ไปหน้า Login
+            window.location.href = 'login.html';
+        }
+    }
+
+    // รันทุกครั้งที่โหลดหน้า
+    checkAuth();
 </script>

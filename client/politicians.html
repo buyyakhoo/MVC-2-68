@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>ทำเนียบนักการเมือง</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap'); body { font-family: 'Sarabun', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+    <div id="navbar-container"></div>
+
+    <main class="max-w-6xl mx-auto px-4 py-10">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8 text-center">ทำเนียบนักการเมือง</h1>
+        
+        <div id="loading" class="text-center text-gray-500">กำลังโหลดรายชื่อ...</div>
+
+        <div id="politicians-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden"></div>
+    </main>
+
+    <script src="navbar.js"></script>
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+
+        async function fetchPoliticians() {
+            try {
+                const res = await fetch(`${API_URL}/politicians`);
+                const json = await res.json();
+                renderList(json.data);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        function renderList(list) {
+            const grid = document.getElementById('politicians-grid');
+            document.getElementById('loading').classList.add('hidden');
+            grid.classList.remove('hidden');
+
+            list.forEach(p => {
+                const html = `
+                <a href="politician_profile.html?id=${p.politician_id}" class="group bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:border-blue-300 transition block">
+                    <div class="h-20 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
+                    <div class="px-6 pb-6 -mt-10 relative text-center">
+                        <div class="w-20 h-20 mx-auto bg-white rounded-full border-4 border-white shadow-sm flex items-center justify-center text-2xl font-bold text-gray-500 uppercase">
+                            ${p.name.charAt(0)}
+                        </div>
+                        <h3 class="mt-3 text-lg font-bold text-gray-900 group-hover:text-blue-600 transition">${p.name}</h3>
+                        <span class="inline-block bg-gray-100 text-gray-600 text-xs font-semibold px-2.5 py-0.5 rounded-full mt-2">${p.party}</span>
+                    </div>
+                </a>`;
+                grid.innerHTML += html;
+            });
+        }
+
+        fetchPoliticians();
+    </script>
+</body>
+</html>

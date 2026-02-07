@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Update - Political Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+    <div id="navbar-container"></div>
+
+    <main class="max-w-3xl mx-auto px-4 py-12">
+        
+        <script>
+            if (localStorage.getItem('role') !== 'admin') {
+                document.body.innerHTML = '<div class="flex items-center justify-center h-screen text-red-600 text-xl font-bold">⛔ Access Denied: สำหรับผู้ดูแลระบบเท่านั้น</div>';
+                setTimeout(() => window.location.href = 'all_promises.html', 1500);
+            }
+        </script>
+
+        <div class="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div class="bg-gradient-to-r from-red-700 to-red-900 px-8 py-5 flex justify-between items-center text-white shadow-md">
+                <h1 class="text-lg font-bold flex items-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    บันทึกความคืบหน้า
+                </h1>
+                <span class="text-xs font-mono bg-white/20 px-2 py-1 rounded border border-white/10">ADMIN MODE</span>
+            </div>
+
+            <div class="p-8">
+                <form onsubmit="handleUpdate(event)" class="space-y-6">
+                    
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">1. เลือกนักการเมือง</label>
+                        <select id="polSelect" onchange="loadPromises(this.value)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 transition">
+                            <option value="">-- กำลังโหลดรายชื่อ... --</option>
+                        </select>
+                    </div>
+
+                    <div class="relative">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">2. เลือกคำสัญญา</label>
+                        <select id="promSelect" disabled class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none bg-gray-100 text-gray-400 cursor-not-allowed transition">
+                            <option value="">-- รอเลือกนักการเมือง --</option>
+                        </select>
+                        <div id="statusHint" class="mt-2 text-sm min-h-[20px]"></div>
+                    </div>
+
+                    <hr class="border-gray-200 border-dashed">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">วันที่อัปเดต</label>
+                            <input type="date" id="date" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none">
+                            <p id="dateHint" class="text-xs text-gray-400 mt-1"></p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">เปลี่ยนสถานะเป็น (Optional)</label>
+                            <select id="newStatus" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none bg-white">
+                                <option value="same">-- คงสถานะเดิม --</option>
+                                <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+                                <option value="สำเร็จแล้ว">สำเร็จแล้ว</option>
+                                <option value="เงียบหาย">เงียบหาย</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">รายละเอียดความคืบหน้า</label>
+                        <textarea id="detail" rows="3" required placeholder="ระบุรายละเอียด..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"></textarea>
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-lg shadow-md transition transform hover:scale-[1.01]">
+                        บันทึกข้อมูลและอัปเดตสถานะ
+                    </button>
+
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="navbar.js"></script>
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        let minAllowedDate = null;
+        let minDateReason = "";
+
+        async function init() {
+            try {
+                const res = await fetch(`${API_URL}/politicians`);
+                const json = await res.json();
+                const sel = document.getElementById('polSelect');
+                sel.innerHTML = '<option value="">-- เลือกนักการเมือง --</option>';
+                json.data.forEach(p => {
+                    sel.innerHTML += `<option value="${p.politician_id}">${p.name} (${p.party})</option>`;
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        async function loadPromises(polId) {
+            const promSelect = document.getElementById('promSelect');
+            const hint = document.getElementById('statusHint');
+            const dateHint = document.getElementById('dateHint');
+            
+            promSelect.innerHTML = '<option value="">-- กำลังโหลด... --</option>';
+            promSelect.disabled = true;
+            hint.innerHTML = '';
+            dateHint.innerHTML = '';
+            minAllowedDate = null;
+            
+            if(!polId) {
+                promSelect.innerHTML = '<option value="">-- รอเลือกนักการเมือง --</option>';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/politicians/${polId}`);
+                const json = await res.json();
+                
+                promSelect.innerHTML = '<option value="">-- เลือกคำสัญญาที่ต้องการอัปเดต --</option>';
+                promSelect.disabled = false;
+                promSelect.classList.remove('bg-gray-100', 'cursor-not-allowed', 'text-gray-400');
+
+                json.data.promises.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.promise_id;
+                    opt.text = p.description;
+                    opt.dataset.status = p.status;
+                    opt.dataset.announce = p.announcement_date; 
+                    promSelect.appendChild(opt);
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        document.getElementById('promSelect').addEventListener('change', async function() {
+            const promiseId = this.value;
+            const hint = document.getElementById('statusHint');
+            const dateInput = document.getElementById('date');
+            const dateHint = document.getElementById('dateHint');
+            
+            minAllowedDate = null;
+            dateHint.innerText = '';
+            dateInput.value = ''; 
+
+            if (!promiseId) { hint.innerText = ''; return; }
+
+            const opt = this.options[this.selectedIndex];
+            const status = opt.dataset.status;
+            const announceDate = opt.dataset.announce;
+
+            if(status === 'เงียบหาย') {
+                hint.innerHTML = '<span class="text-red-600 font-bold bg-red-50 px-2 py-1 rounded">สถานะ: เงียบหาย (ไม่สามารถอัปเดตได้)</span>';
+                alert('คำสัญญานี้มีสถานะ "เงียบหาย" ไม่สามารถอัปเดตเพิ่มเติมได้');
+                this.value = ""; 
+                return;
+            }
+
+            hint.innerHTML = '<span class="text-gray-500 text-xs">⏳ กำลังตรวจสอบไทม์ไลน์...</span>';
+            
+            try {
+                const res = await fetch(`${API_URL}/promises/${promiseId}`);
+                const json = await res.json();
+                
+                if (json.status === 'success') {
+                    const updates = json.data.updates;
+                    let lastUpdate = null;
+
+                    if (updates.length > 0) {
+                        lastUpdate = updates.reduce((max, u) => u.update_date > max ? u.update_date : max, updates[0].update_date);
+                        if (announceDate > lastUpdate) lastUpdate = announceDate;
+                        minAllowedDate = lastUpdate;
+                        minDateReason = `อัปเดตล่าสุด (${lastUpdate})`;
+                    } else {
+                        minAllowedDate = announceDate;
+                        minDateReason = `วันประกาศสัญญา (${announceDate})`;
+                    }
+
+                    hint.innerHTML = `<span class="text-green-600 font-medium">สถานะปัจจุบัน: ${status}</span>`;
+                    dateHint.innerHTML = `ต้องใส่วันที่หลัง: <span class="font-bold text-red-600">${minAllowedDate}</span> (${minDateReason})`;
+                    dateInput.min = minAllowedDate;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        });
+
+        async function handleUpdate(e) {
+            e.preventDefault();
+            
+            const promiseId = document.getElementById('promSelect').value;
+            const inputDate = document.getElementById('date').value;
+            const detail = document.getElementById('detail').value;
+            // [ดึงค่าสถานะใหม่]
+            const newStatus = document.getElementById('newStatus').value;
+
+            if(!promiseId || !inputDate || !detail) return alert('กรุณากรอกข้อมูลให้ครบ');
+
+            if (minAllowedDate) {
+                const dInput = new Date(inputDate);
+                const dMin = new Date(minAllowedDate);
+                if (dInput <= dMin) {
+                    alert(`วันที่ผิดพลาด!\n\nระบบตรวจพบว่า: ${minDateReason}\nวันที่คุณเลือก: ${inputDate}\n\nไทม์ไลน์ต้องเดินหน้าเท่านั้น`);
+                    return; 
+                }
+            }
+
+            try {
+                // ส่งข้อมูลไป API (รวม status)
+                const res = await fetch(`${API_URL}/promises/${promiseId}/updates`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        detail, 
+                        update_date: inputDate,
+                        status: newStatus // <-- ส่งไปด้วย
+                    })
+                });
+                const json = await res.json();
+
+                if(res.ok) {
+                    alert('บันทึกข้อมูลสำเร็จ!');
+                    window.location.href = `promise_detail.html?id=${promiseId}`;
+                } else {
+                    alert('Error: ' + json.message);
+                }
+            } catch(e) { 
+                console.error(e); 
+                alert('เชื่อมต่อ Server ไม่ได้'); 
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

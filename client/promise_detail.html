@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>รายละเอียด</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap'); body { font-family: 'Sarabun', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+    <div id="navbar-container"></div>
+
+    <main class="max-w-4xl mx-auto px-4 py-10">
+        <div id="loading" class="text-center py-10">กำลังโหลดรายละเอียด...</div>
+
+        <div id="content" class="hidden">
+            <div class="bg-white rounded-xl shadow-sm p-8 mb-6 border border-gray-100">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                    <div>
+                        <h1 id="p-desc" class="text-2xl font-bold text-gray-900 mb-2">...</h1>
+                        <div class="flex items-center gap-2 text-gray-600">
+                            <span id="p-party" class="font-medium text-blue-600">...</span>
+                            <span>•</span>
+                            <span id="p-politician">...</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 md:mt-0 text-right">
+                        <span id="p-status" class="inline-block bg-gray-100 text-gray-800 text-sm font-bold px-4 py-1.5 rounded-full mb-2">...</span>
+                        <p id="p-date" class="text-xs text-gray-400">...</p>
+                    </div>
+                </div>
+
+                <hr class="border-gray-100 my-6">
+
+                <h2 class="text-xl font-bold text-gray-900 mb-6">ประวัติความคืบหน้า</h2>
+                <div id="timeline" class="relative border-l-2 border-gray-200 ml-3 space-y-8">
+                </div>
+                
+                <p id="no-updates" class="text-gray-400 italic hidden ml-4">ยังไม่มีการอัปเดตความคืบหน้า</p>
+            </div>
+        </div>
+    </main>
+
+    <script src="navbar.js"></script>
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get('id');
+
+        async function fetchDetail() {
+            if (!id) return;
+            try {
+                const res = await fetch(`${API_URL}/promises/${id}`);
+                const json = await res.json();
+                
+                if(json.status === 'success') {
+                    renderDetail(json.data);
+                }
+            } catch (e) {
+                document.getElementById('loading').innerText = 'ไม่พบข้อมูล';
+            }
+        }
+
+        function renderDetail(data) {
+            const p = data.promise;
+            const updates = data.updates;
+
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('content').classList.remove('hidden');
+
+            // Render Header
+            document.getElementById('p-desc').innerText = p.description;
+            document.getElementById('p-politician').innerText = p.politician_name;
+            document.getElementById('p-party').innerText = p.party;
+            document.getElementById('p-date').innerText = 'ประกาศเมื่อ: ' + p.announcement_date;
+            
+            const statusEl = document.getElementById('p-status');
+            statusEl.innerText = p.status;
+            if(p.status === 'กำลังดำเนินการ') statusEl.className = "inline-block bg-yellow-100 text-yellow-800 text-sm font-bold px-4 py-1.5 rounded-full mb-2";
+            if(p.status === 'สำเร็จแล้ว') statusEl.className = "inline-block bg-green-100 text-green-800 text-sm font-bold px-4 py-1.5 rounded-full mb-2";
+            if(p.status === 'เงียบหาย') statusEl.className = "inline-block bg-red-100 text-red-800 text-sm font-bold px-4 py-1.5 rounded-full mb-2";
+
+            // Render Timeline
+            const timeline = document.getElementById('timeline');
+            if (updates.length === 0) {
+                document.getElementById('no-updates').classList.remove('hidden');
+            } else {
+                updates.forEach((u, index) => {
+                    const isFirst = index === 0;
+                    const dotColor = isFirst ? 'bg-white border-blue-500' : 'bg-gray-200 border-gray-300';
+                    const html = `
+                        <div class="relative pl-8">
+                            <div class="absolute -left-2 top-0 ${dotColor} border-2 w-4 h-4 rounded-full"></div>
+                            <p class="text-sm text-gray-500 mb-1">${u.update_date}</p>
+                            <p class="text-gray-900 mt-1 font-medium">${u.detail}</p>
+                        </div>`;
+                    timeline.innerHTML += html;
+                });
+            }
+        }
+
+        fetchDetail();
+    </script>
+</body>
+</html>

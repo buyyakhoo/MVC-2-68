@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>รวมคำสัญญา - Political Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap'); body { font-family: 'Sarabun', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+    <div id="navbar-container"></div>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6">คำสัญญาทั้งหมด</h1>
+
+        <div id="loading" class="text-center py-10 text-gray-500">กำลังโหลดข้อมูล...</div>
+
+        <div id="promises-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
+            </div>
+    </main>
+
+    <script src="navbar.js"></script>
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+
+        async function fetchPromises() {
+            try {
+                const res = await fetch(`${API_URL}/promises`);
+                const json = await res.json();
+                
+                if (json.status === 'success') {
+                    renderPromises(json.data);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loading').innerText = 'เกิดข้อผิดพลาดในการเชื่อมต่อ API';
+            }
+        }
+
+        function renderPromises(promises) {
+            const grid = document.getElementById('promises-grid');
+            document.getElementById('loading').classList.add('hidden');
+            grid.classList.remove('hidden');
+            grid.innerHTML = '';
+
+            promises.forEach(p => {
+                // กำหนดสี Badge ตามสถานะ
+                let badgeColor = 'bg-gray-100 text-gray-800';
+                if (p.status === 'กำลังดำเนินการ') badgeColor = 'bg-yellow-100 text-yellow-800';
+                if (p.status === 'สำเร็จแล้ว') badgeColor = 'bg-green-100 text-green-800';
+                if (p.status === 'เงียบหาย') badgeColor = 'bg-red-100 text-red-800';
+
+                const html = `
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition flex flex-col h-full">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="${badgeColor} text-xs font-semibold px-2.5 py-0.5 rounded-full">${p.status}</span>
+                        <span class="text-sm text-gray-500">${p.announcement_date}</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-900 mb-2 flex-grow">
+                        <a href="promise_detail.html?id=${p.promise_id}" class="hover:text-blue-600 transition">${p.description}</a>
+                    </h3>
+                    <div class="flex items-center pt-4 border-t border-gray-100 mt-auto">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600 mr-3">
+                            ${p.politician_name.charAt(0)}
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900">${p.politician_name}</p>
+                            <p class="text-xs text-gray-500">${p.party_name}</p>
+                        </div>
+                    </div>
+                </div>`;
+                grid.innerHTML += html;
+            });
+        }
+
+        fetchPromises();
+    </script>
+</body>
+</html>

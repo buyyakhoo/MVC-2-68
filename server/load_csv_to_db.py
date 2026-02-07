@@ -2,275 +2,187 @@ import sqlite3
 import csv
 import os
 
-# สร้างโฟลเดอร์สำหรับ database
-os.makedirs("src/database", exist_ok=True)
+# --- ตั้งค่า Path และชื่อไฟล์ ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FOLDER = os.path.join(BASE_DIR, "src", "database")
+DB_PATH = os.path.join(DB_FOLDER, "political_party.db")
 
-# เชื่อมต่อกับ SQLite database
-db_path = "src/database/school_registration.db"
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
+# สร้างโฟลเดอร์ src/database ถ้ายังไม่มี
+os.makedirs(DB_FOLDER, exist_ok=True)
 
-# เปิดใช้งาน foreign keys
-cursor.execute("PRAGMA foreign_keys = ON")
+def clean_old_db():
+    """ลบ Database เก่าทิ้งเพื่อเริ่มใหม่แบบ Clean"""
+    if os.path.exists(DB_PATH):
+        try:
+            os.remove(DB_PATH)
+            print(f"Removed old database at: {DB_PATH}")
+        except PermissionError:
+            print("Error: ไม่สามารถลบไฟล์ Database เก่าได้ (อาจมีโปรแกรมอื่นเปิดอยู่)")
+            return False
+    return True
 
-def drop_all_tables():
-    """ลบ tables ทั้งหมด"""
-    cursor.execute("DROP TABLE IF EXISTS RegisteredSubject")
-    cursor.execute("DROP TABLE IF EXISTS SubjectStructure")
-    cursor.execute("DROP TABLE IF EXISTS Subjects")
-    cursor.execute("DROP TABLE IF EXISTS Students")
+def get_csv_path(filename):
+    """หาไฟล์ CSV จากทั้งโฟลเดอร์ปัจจุบันและโฟลเดอร์ src/database"""
+    # 1. ลองหาในโฟลเดอร์เดียวกับ script
+    path1 = os.path.join(BASE_DIR, filename)
+    if os.path.exists(path1): return path1
+    
+    # 2. ลองหาในโฟลเดอร์ database
+    path2 = os.path.join(DB_FOLDER, filename)
+    if os.path.exists(path2): return path2
+    
+    return None
+
+def create_tables(conn):
+    cursor = conn.cursor()
+    
+    # 1. Politicians
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Politicians (
+            politician_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            party TEXT NOT NULL
+        )
+    ''')
+
+    # 2. Campaigns
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Campaigns (
+            campaign_id TEXT PRIMARY KEY,
+            politician_id TEXT NOT NULL,
+            election_year INTEGER NOT NULL,
+            district TEXT NOT NULL,
+            FOREIGN KEY (politician_id) REFERENCES Politicians(politician_id)
+        )
+    ''')
+
+    # 3. Promises
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Promises (
+            promise_id TEXT PRIMARY KEY,
+            politician_id TEXT NOT NULL,
+            description TEXT NOT NULL,
+            announcement_date TEXT NOT NULL,
+            status TEXT NOT NULL,
+            FOREIGN KEY (politician_id) REFERENCES Politicians(politician_id)
+        )
+    ''')
+
+    # 4. PromiseUpdates (ตัวที่มีปัญหา)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS PromiseUpdates (
+            update_id TEXT PRIMARY KEY,
+            promise_id TEXT NOT NULL,
+            update_date TEXT NOT NULL,
+            detail TEXT NOT NULL,
+            FOREIGN KEY (promise_id) REFERENCES Promises(promise_id)
+        )
+    ''')
     conn.commit()
-    print("Dropped all existing tables")
+    print("Created all tables successfully.")
 
-def create_students_table():
-    """สร้างตาราง Students"""
-    cursor.execute('''
-        CREATE TABLE Students (
-            StudentID INTEGER PRIMARY KEY,
-            Title TEXT NOT NULL,
-            FirstName TEXT NOT NULL,
-            LastName TEXT NOT NULL,
-            BirthDate TEXT NOT NULL,
-            CurrentSchool TEXT NOT NULL,
-            Email TEXT NOT NULL,
-            CurriculumID INTEGER NOT NULL
-        )
-    ''')
-    print("Created Students table")
+def import_csv_data(conn):
+    cursor = conn.cursor()
+    
+    # รายชื่อไฟล์และการ mapping (ชื่อไฟล์จริงในเครื่องต้องตรงกับ key ใน dict นี้)
+    files_map = {
+        "politicians.csv": { # หรือ Politicians.csv
+            "table": "Politicians",
+            "cols": ["politician_id", "name", "party"]
+        },
+        "campaigns.csv": {
+            "table": "Campaigns",
+            "cols": ["campaign_id", "politician_id", "election_year", "district"]
+        },
+        "promises.csv": {
+            "table": "Promises",
+            "cols": ["promise_id", "politician_id", "description", "announcement_date", "status"]
+        },
+        "promise_updates.csv": { # ตรวจสอบชื่อไฟล์นี้ให้ดี
+            "table": "PromiseUpdates",
+            "cols": ["update_id", "promise_id", "update_date", "detail"]
+        }
+    }
 
-def create_subjects_table():
-    """สร้างตาราง Subjects"""
-    cursor.execute('''
-        CREATE TABLE Subjects (
-            SubjectID TEXT PRIMARY KEY,
-            SubjectName TEXT NOT NULL,
-            Credits INTEGER NOT NULL,
-            Instructor TEXT NOT NULL,
-            PrerequisiteSubjectID TEXT,
-            FOREIGN KEY (PrerequisiteSubjectID) REFERENCES Subjects(SubjectID)
-        )
-    ''')
-    print("Created Subjects table")
-
-def create_subject_structure_table():
-    """สร้างตาราง SubjectStructure"""
-    cursor.execute('''
-        CREATE TABLE SubjectStructure (
-            CurriculumID INTEGER NOT NULL,
-            CurriculumName TEXT NOT NULL,
-            FacultyName TEXT NOT NULL,
-            SubjectID TEXT NOT NULL,
-            Semester INTEGER NOT NULL,
-            PRIMARY KEY (CurriculumID, SubjectID),
-            FOREIGN KEY (SubjectID) REFERENCES Subjects(SubjectID)
-        )
-    ''')
-    print("Created SubjectStructure table")
-
-def create_registered_subject_table():
-    """สร้างตาราง RegisteredSubject"""
-    cursor.execute('''
-        CREATE TABLE RegisteredSubject (
-            StudentID INTEGER NOT NULL,
-            SubjectID TEXT NOT NULL,
-            Grade TEXT,
-            PRIMARY KEY (StudentID, SubjectID),
-            FOREIGN KEY (StudentID) REFERENCES Students(StudentID),
-            FOREIGN KEY (SubjectID) REFERENCES Subjects(SubjectID)
-        )
-    ''')
-    print("Created RegisteredSubject table")
-
-def load_students_csv():
-    """อ่านและ insert ข้อมูลจาก Students.csv"""
-    with open('src/database/Students.csv', 'r', encoding='utf-8-sig') as file:
-        csv_reader = csv.DictReader(file)
-        students_data = []
+    print("\n--- Starting Data Import ---")
+    
+    for filename, config in files_map.items():
+        filepath = get_csv_path(filename)
         
-        for row in csv_reader:
-            students_data.append((
-                int(row['StudentID']),
-                row['Title'].strip(),
-                row['FirstName'].strip(),
-                row['LastName'].strip(),
-                row['BirthDate'].strip(),
-                row['CurrentSchool'].strip(),
-                row['Email'].strip(),
-                int(row['CurriculumID'])
-            ))
-    
-    cursor.executemany('''
-        INSERT INTO Students (StudentID, Title, FirstName, LastName, BirthDate, CurrentSchool, Email, CurriculumID)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', students_data)
-    
-    print(f"Inserted {len(students_data)} records into Students table")
-
-def load_subjects_csv():
-    """อ่านและ insert ข้อมูลจาก Subjects.csv"""
-    with open('src/database/Subjects.csv', 'r', encoding='utf-8-sig') as file:
-        csv_reader = csv.DictReader(file)
-        subjects_data = []
+        # ถ้าไม่เจอ ลองหาแบบ Case Insensitive (เผื่อชื่อไฟล์ตัวเล็กตัวใหญ่ไม่ตรง)
+        if not filepath:
+            # ลองหาไฟล์ที่มีชื่อคล้ายกันในโฟลเดอร์
+            for f in os.listdir(BASE_DIR):
+                if f.lower() == filename.lower():
+                    filepath = os.path.join(BASE_DIR, f)
+                    break
         
-        # Debug: แสดง column names ที่อ่านได้
-        print(f"CSV columns found: {csv_reader.fieldnames}")
-        
-        for row in csv_reader:
-            # Debug: แสดงข้อมูลแถวแรก
-            if len(subjects_data) == 0:
-                print(f"First row data: {dict(row)}")
-            
-            # ทำความสะอาด column names และ values
-            clean_row = {}
-            for key, value in row.items():
-                clean_key = key.strip() if key else key
-                clean_value = value.strip() if value else value
-                clean_row[clean_key] = clean_value
-            
-            # หา column names ที่ถูกต้อง (อาจมีช่องว่างหรือตัวอักษรแปลก)
-            subject_id_key = None
-            subject_name_key = None
-            credit_key = None
-            professor_key = None
-            prerequisite_key = None
-            
-            for key in clean_row.keys():
-                key_lower = key.lower().strip()
-                if 'subjectid' in key_lower:
-                    subject_id_key = key
-                elif 'subjectname' in key_lower:
-                    subject_name_key = key
-                elif 'credit' in key_lower:
-                    credit_key = key
-                elif 'professor' in key_lower:
-                    professor_key = key
-                elif 'prerequisite' in key_lower:
-                    prerequisite_key = key
-            
-            # จัดการ PrerequisiteCode ที่อาจเป็นค่าว่าง (เก็บเป็น TEXT)
-            prerequisite_id = None
-            if prerequisite_key and clean_row[prerequisite_key]:
-                prerequisite_id = clean_row[prerequisite_key].strip()
-            
-            subjects_data.append((
-                clean_row[subject_id_key].strip(),  # เก็บเป็น TEXT เพื่อรักษาเลข 0 ข้างหน้า
-                clean_row[subject_name_key],
-                int(clean_row[credit_key]),
-                clean_row[professor_key],
-                prerequisite_id
-            ))
-    
-    cursor.executemany('''
-        INSERT INTO Subjects (SubjectID, SubjectName, Credits, Instructor, PrerequisiteSubjectID)
-        VALUES (?, ?, ?, ?, ?)
-    ''', subjects_data)
-    
-    print(f"Inserted {len(subjects_data)} records into Subjects table")
+        if not filepath:
+            print(f"❌ Error: หาไฟล์ '{filename}' ไม่เจอ! (ข้ามการ import ตาราง {config['table']})")
+            continue
 
-def load_subject_structure_csv():
-    """อ่านและ insert ข้อมูลจาก SubjectStructure.csv"""
-    with open('src/database/SubjectStructure.csv', 'r', encoding='utf-8-sig') as file:
-        csv_reader = csv.DictReader(file)
-        structure_data = []
+        print(f"Reading {os.path.basename(filepath)}...")
         
-        for row in csv_reader:
-            structure_data.append((
-                int(row['CurriculumID']),
-                row['CurriculumName'].strip(),
-                row['FacultyName'].strip(),
-                row['SubjectID'].strip(),  # เก็บเป็น TEXT เพื่อรักษาเลข 0 ข้างหน้า
-                int(row['Semester'])
-            ))
-    
-    cursor.executemany('''
-        INSERT INTO SubjectStructure (CurriculumID, CurriculumName, FacultyName, SubjectID, Semester)
-        VALUES (?, ?, ?, ?, ?)
-    ''', structure_data)
-    
-    print(f"Inserted {len(structure_data)} records into SubjectStructure table")
+        try:
+            with open(filepath, 'r', encoding='utf-8-sig') as f:
+                reader = csv.DictReader(f)
+                
+                # Normalize headers: ลบช่องว่างหัวท้ายชื่อคอลัมน์
+                reader.fieldnames = [name.strip() for name in reader.fieldnames]
+                
+                data_list = []
+                for row in reader:
+                    # ดึงข้อมูลโดยใช้ .get() เพื่อป้องกัน Error ถ้าชื่อ column ใน csv ไม่ตรงเป๊ะ
+                    # และ strip() ข้อมูลเพื่อลบช่องว่างส่วนเกิน
+                    record = [row.get(col, '').strip() for col in config['cols']]
+                    
+                    # เช็คว่ามีข้อมูลครบไหม (ถ้าเป็นค่าว่างทั้งหมดแสดงว่าเป็นบรรทัดเปล่า)
+                    if any(record):
+                        data_list.append(record)
 
-def load_registered_subject_csv():
-    """อ่านและ insert ข้อมูลจาก RegisteredSubject.csv"""
-    with open('src/database/RegisteredSubject.csv', 'r', encoding='utf-8-sig') as file:
-        csv_reader = csv.DictReader(file)
-        registered_data = []
-        
-        for row in csv_reader:
-            grade = row['Grade'].strip() if row['Grade'].strip() else None
-            registered_data.append((
-                int(row['StudentID']),
-                row['SubjectID'].strip(),  # เก็บเป็น TEXT เพื่อรักษาเลข 0 ข้างหน้า
-                grade
-            ))
-    
-    cursor.executemany('''
-        INSERT INTO RegisteredSubject (StudentID, SubjectID, Grade)
-        VALUES (?, ?, ?)
-    ''', registered_data)
-    
-    print(f"Inserted {len(registered_data)} records into RegisteredSubject table")
+                if data_list:
+                    placeholders = ','.join(['?'] * len(config['cols']))
+                    sql = f"INSERT INTO {config['table']} ({','.join(config['cols'])}) VALUES ({placeholders})"
+                    cursor.executemany(sql, data_list)
+                    print(f"  ✅ Imported {len(data_list)} records into {config['table']}")
+                else:
+                    print(f"  ⚠️ No data found in file")
 
-def show_summary():
-    """แสดงสรุปข้อมูลในฐานข้อมูล"""
-    print("\n=== Database Summary ===")
+        except Exception as e:
+            print(f"  ❌ Error importing {filename}: {e}")
+
+    conn.commit()
+
+def verify_data(conn):
+    cursor = conn.cursor()
+    print("\n--- Verifying Data ---")
+    tables = ["Politicians", "Campaigns", "Promises", "PromiseUpdates"]
     
-    # นับจำนวนข้อมูลในแต่ละตาราง
-    cursor.execute("SELECT COUNT(*) FROM Students")
-    print(f"Students: {cursor.fetchone()[0]} records")
-    
-    cursor.execute("SELECT COUNT(*) FROM Subjects")
-    print(f"Subjects: {cursor.fetchone()[0]} records")
-    
-    cursor.execute("SELECT COUNT(*) FROM SubjectStructure")
-    print(f"SubjectStructure: {cursor.fetchone()[0]} records")
-    
-    cursor.execute("SELECT COUNT(*) FROM RegisteredSubject")
-    print(f"RegisteredSubject: {cursor.fetchone()[0]} records")
-    
-    # แสดงข้อมูลตัวอย่าง
-    print("\n=== Sample Data ===")
-    cursor.execute("SELECT * FROM Students LIMIT 3")
-    print("Students sample:", cursor.fetchall())
-    
-    cursor.execute("SELECT * FROM Subjects LIMIT 3")
-    print("Subjects sample:", cursor.fetchall())
+    for table in tables:
+        try:
+            cursor.execute(f"SELECT COUNT(*) FROM {table}")
+            count = cursor.fetchone()[0]
+            print(f"{table}: {count} records")
+        except sqlite3.OperationalError:
+            print(f"{table}: Table not found!")
 
 def main():
-    """ฟังก์ชันหลัก"""
-    print("Starting CSV to SQLite import process...")
-    
+    if not clean_old_db():
+        return
+
+    print(f"Creating database at: {DB_PATH}")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA foreign_keys = ON")
+
     try:
-        # ลบตารางเก่า
-        drop_all_tables()
+        create_tables(conn)
+        import_csv_data(conn)
+        verify_data(conn)
+        print("\n=== Process Completed ===")
         
-        # สร้างตารางใหม่
-        print("\nCreating tables...")
-        create_students_table()
-        create_subjects_table()
-        create_subject_structure_table()
-        create_registered_subject_table()
-        
-        # โหลดข้อมูลจาก CSV files
-        print("\nLoading data from CSV files...")
-        load_students_csv()
-        load_subjects_csv()
-        load_subject_structure_csv()
-        load_registered_subject_csv()
-        
-        # Commit การเปลี่ยนแปลง
-        conn.commit()
-        
-        # แสดงสรุป
-        show_summary()
-        
-        print(f"\n=== Success! ===")
-        print(f"All CSV data has been imported to: {db_path}")
-        
-    except FileNotFoundError as e:
-        print(f"Error: CSV file not found - {e}")
     except Exception as e:
-        print(f"Error: {e}")
-        conn.rollback()
+        print(f"\nCRITICAL ERROR: {e}")
     finally:
         conn.close()
 
