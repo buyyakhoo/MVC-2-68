@@ -1,0 +1,15 @@
+SubjectID, SubjectName, Credit, Professor, PrerequisiteCode
+05506003, Programming Fundamental, 3, สันธนะ อู่อุดมยิ่ง,
+05506231, Statistic and Probability, 3, จีรพร วีระพันธุ์,
+05506005, Computer Science, 3, สันธนะ อู่อุดมยิ่ง,
+05506232, Mathematics for Computer Science, 3, ณชญาดา กมลมิธิชม,
+05506233, Calculus for Computer Science, 3, ธีรวัฒน์ ประกอบผล,
+05506001, Discrete Mathematics, 3, วิสันต์ ตั้งวงษ์เจริญ,
+05506004, Object Oriented Programming, 3, สันธนะ อู่อุดมยิ่ง, 05506003
+05506008, Computer Structure and Architecture, 3, บุญหทัย เครือแก้ว,
+05506015, Computer Ethics and Society, 3, รุ่งรัตน์ เวียงศรีพนาวัลย์
+90641001, Charm Schools, 3, ปัทมา เจริญพร,
+90641002, Digital Intelligent, 3, ปัทมา เจริญพร,
+90644007, Foundation English 1, 3, ประพจน์ ศรีนุวัตติวงศ์
+90644008, Foundation English 2, 3, ประพจน์ ศรีนุวัตติวงศ์, 
+

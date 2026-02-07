@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <title>Students (Admin)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        body { font-family: sans-serif; max-width: 1100px; margin: 16px auto; }
+        .toolbar { display:flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        input, select, button { padding:8px; }
+        table { width:100%; border-collapse: collapse; }
+        th, td { padding: 8px; border-bottom:1px solid #eee; text-align:left; }
+        .muted { color:#666; }
+        .card { border:1px solid #ddd; border-radius:8px; padding:12px; margin:12px 0; }
+    </style>
+</head>
+<body>
+    <div id="navbar"></div>
+
+    <h1>รายชื่อนักเรียน (Admin)</h1>
+    <div class="card">
+        <div class="toolbar">
+            <input id="search" type="text" placeholder="ค้นหาชื่อ/นามสกุล..." />
+            <select id="school"><option value="">ทุกโรงเรียน</option></select>
+            <select id="sort">
+                <option value="name">เรียงตามชื่อ</option>
+                <option value="age">เรียงตามอายุ</option>
+            </select>
+            <button id="btnLoad">โหลดรายการ</button>
+        </div>
+
+        <div class="muted" id="summary">—</div>
+
+        <table>
+        <thead>
+            <tr>
+                <th>StudentID</th><th>ชื่อ</th><th>นามสกุล</th><th>อายุ</th><th>โรงเรียน</th><th>หลักสูตร</th><th></th>
+            </tr>
+        </thead>
+            <tbody id="tbody"><tr><td colspan="7" class="muted">กำลังโหลด...</td></tr></tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadNavbar() {
+            const res = await fetch('/client/components/navbar.html');
+            const html = await res.text();
+            const container = document.getElementById('navbar');
+            container.innerHTML = html;
+
+            // ✅ สำคัญ: รัน <script> ภายใน navbar.html ที่ถูกแทรกเข้ามา
+            const scripts = container.querySelectorAll('script');
+            scripts.forEach(old => {
+                const s = document.createElement('script');
+                if (old.src) {
+                    s.src = old.src;
+                } else {
+                    s.textContent = old.textContent;
+                }
+                document.body.appendChild(s);
+                old.remove();
+            });
+        }
+        loadNavbar()
+
+        const me = (()=>{ try{return JSON.parse(localStorage.getItem('currentUser'))}catch{return null} })();
+        if(!me || me.user_type!=='admin'){ location.href='/client/login.html' }
+
+            const api = 'http://127.0.0.1:5000/students';
+            const headers = { 'X-User-ID': me.user_id, 'X-User-Type': me.user_type };
+
+            async function loadStudents(){
+            const q = new URLSearchParams();
+            const sTerm = document.getElementById('search').value.trim();
+            const school = document.getElementById('school').value;
+            const sort = document.getElementById('sort').value;
+
+            if(sTerm) q.set('search', sTerm);
+            if(school) q.set('school', school);
+            if(sort) q.set('sort', sort);
+
+            const url = q.toString() ? `${api}?${q.toString()}` : api;
+
+            const tb = document.getElementById('tbody');
+            const sum = document.getElementById('summary');
+            tb.innerHTML = `<tr><td colspan="7" class="muted">กำลังโหลด...</td></tr>`;
+            try{
+                const res = await fetch(url, { credentials:'include', headers });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error || 'โหลดไม่สำเร็จ');
+
+                // dropdown โรงเรียน
+                const schoolSel = document.getElementById('school');
+                if(schoolSel.options.length <= 1){
+                    (data.schools || []).forEach(sc=>{
+                        const opt = document.createElement('option');
+                        opt.value = sc; opt.textContent = sc;
+                        schoolSel.appendChild(opt);
+                    });
+                }
+
+                const rows = data.students || [];
+                sum.textContent = `ผลลัพธ์: ${rows.length} คน`;
+                if(rows.length===0){
+                    tb.innerHTML = `<tr><td colspan="7" class="muted">ไม่พบข้อมูล</td></tr>`;
+                }else{
+                    tb.innerHTML = rows.map(st => `
+                        <tr>
+                        <td>${st.StudentID}</td>
+                        <td>${st.Title||''} ${st.FirstName||''}</td>
+                        <td>${st.LastName||''}</td>
+                        <td>${st.Age ?? '-'}</td>
+                        <td>${st.CurrentSchool||''}</td>
+                        <td>${st.CurriculumID ?? '-'}</td>
+                        <td><a href="/client/profile.html?student_id=${encodeURIComponent(st.StudentID)}">Profile</a></td>
+                        </tr>
+                    `).join('');
+                }
+            }catch(e){
+                tb.innerHTML = `<tr><td colspan="7" class="muted">${e.message}</td></tr>`;
+            }
+        }
+
+        document.getElementById('btnLoad').addEventListener('click', loadStudents);
+        document.getElementById('search').addEventListener('keydown', e=>{ if(e.key==='Enter') loadStudents() });
+        // โหลดรอบแรก
+        loadStudents();
+    </script>
+</body>
+</html>

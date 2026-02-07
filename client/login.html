@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { 
+        font-family: sans-serif; 
+        max-width: 480px; 
+        margin: 24px auto; 
+    }
+
+    label { 
+        display:block; 
+        margin: 8px 0 4px; 
+    }
+
+    input, select, button { 
+        padding: 8px; 
+        width: 100%; 
+    }
+
+    .card { 
+        border: 1px solid #ccc; 
+        padding: 16px; 
+        border-radius: 8px; 
+    }
+
+    .msg { 
+        margin-top: 12px; 
+        color: #b00; 
+    }
+
+  </style>
+</head>
+<body>
+    <h1>เข้าสู่ระบบ</h1>
+    <div class="card">
+        <form id="loginForm">
+            <label for="user_id">User ID</label>
+            <input id="user_id" name="user_id" type="text" placeholder="เช่น 69000001 หรือ 99999999 (admin)" required />
+
+            <label for="user_type">User Type</label>
+            <select id="user_type" name="user_type" required>
+                <option value="student">student</option>
+                <option value="admin">admin</option>
+            </select>
+
+            <button type="submit" style="margin-top:12px;">Login</button>
+            <p class="hint" style="font-size:12px;color:#555;margin-top:8px;">
+                * สำหรับแอดมิน ให้กรอก user_id = 99999999 และเลือก user_type = admin (อิงตาม controller) 
+            </p>
+        </form>
+        <div id="msg" class="msg"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('loginForm');
+        const msgEl = document.getElementById('msg');
+
+        form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        msgEl.textContent = "";
+
+        const userIdRaw = document.getElementById('user_id').value.trim();
+        const userType = document.getElementById('user_type').value;
+
+        // controller เช็ค admin ด้วยตัวเลข 99999999 และ student ใช้เลขนักเรียนจริง
+        // จึงส่ง user_id เป็น Number
+        const user_id = Number(userIdRaw);
+
+        if (!Number.isInteger(user_id)) {
+            msgEl.textContent = "กรุณากรอก user_id เป็นตัวเลข 8 หลัก";
+            return;
+        }
+
+        try {
+            const res = await fetch('http://127.0.0.1:5000/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',              // ✅ สำคัญมาก
+                body: JSON.stringify({ user_id, user_type: userType })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                msgEl.textContent = data.error || 'Login ล้มเหลว';
+                return;
+            }
+
+            // เก็บข้อมูลผู้ใช้แบบง่าย ๆ ไว้ใช้ในหน้า dashboard
+            localStorage.setItem('currentUser', JSON.stringify({
+                user_id: data.user_id,
+                user_type: data.user_type
+            }));
+
+            // ไปหน้า dashboard
+            // หลัง login สำเร็จ
+            window.location.href = '/client/dashboard.html';
+
+        } catch (err) {
+            console.error(err);
+            msgEl.textContent = 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้';
+        }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<nav style="display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid #ddd;font-family:sans-serif">
+    <div style="display:flex;gap:10px;align-items:center">
+        <a href="/client/dashboard.html">Home</a>
+        <a href="/client/students.html" id="link-students" style="display:none;">Students</a>
+        <a href="/client/grading.html" id="link-grading" style="display:none;">Grade Entry</a>
+        <a href="/client/profile.html" id="link-profile">Profile</a>
+        <a href="/client/unregistered.html" id="link-unregistered">Unregistered</a>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center">
+        <span id="whoami" style="color:#555;">—</span>
+        <form id="logoutForm" style="margin:0;"><button type="submit">Logout</button></form>
+    </div>
+</nav>
+<script>
+    const u = (()=>{ try{return JSON.parse(localStorage.getItem('currentUser'))}catch{return null} })();
+    if(!u){
+        if(!location.pathname.endsWith('/client/login.html')) location.href='/client/login.html';
+    }else{
+        document.getElementById('whoami').textContent = `user: ${u.user_id} • type: ${u.user_type}`;
+        const isAdmin = u.user_type === 'admin';
+        if(isAdmin){
+            document.getElementById('link-students').style.display='';
+            document.getElementById('link-grading').style.display='';
+        }
+        // student จะพาไป profile ของตัวเอง
+        document.getElementById('link-profile').addEventListener('click', (e)=>{
+        if(!isAdmin){
+            e.preventDefault();
+            location.href=`/client/profile.html?student_id=${encodeURIComponent(u.user_id)}`;
+        }
+        });
+    }
+
+    // ✅ logout: ส่งคุกกี้ไปล้าง session + ล้าง localStorage + เด้งไป /client/login.html
+    document.getElementById('logoutForm').addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        try{
+        await fetch('http://127.0.0.1:5000/logout', { method: 'POST', credentials: 'include' });
+        }catch(_){}
+        localStorage.removeItem('currentUser');
+        location.href='/client/login.html';
+    });
+</script>
